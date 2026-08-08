@@ -24,6 +24,7 @@ ${bold("COMMANDS")}
   show <number>          print a full thread
   status                 what is indexed, how fresh, how big
   embed                  enable/disable semantic search
+  serve                  run the MCP server on stdio
 
 ${bold("COMMON OPTIONS")}
   --repo <owner/repo>    target a specific repo (default: the repo you're in)
@@ -138,6 +139,12 @@ async function main(argv: string[]): Promise<void> {
         disable: values["disable"] === true,
         model: asString(values["model"]),
       });
+
+    case "serve": {
+      // Imported lazily so the MCP SDK never loads for a plain `ask`.
+      const { serveCommand } = await import("./commands/serve.ts");
+      return serveCommand();
+    }
 
     default:
       fail(`unknown command "${command}". Try: groundhog --help`);

@@ -46,7 +46,9 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "better-sqlite3": "^11.8.1"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "better-sqlite3": "^11.8.1",
+    "zod": "^4.4.3"
   },
   "optionalDependencies": {
     "@huggingface/transformers": "^3.3.3"
