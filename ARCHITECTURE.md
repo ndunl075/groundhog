@@ -104,8 +104,9 @@ later. GitHub is the only implementation at v1.
 
 Threads are not prose, and splitting them like prose destroys them. Rules:
 
-1. **Head chunk** = title + issue body, truncated to 1 200 tokens. Always retrievable alone —
-   most "has anyone hit this" matches are body-to-body.
+1. **Head chunk** = title + issue body, to 1 200 tokens; a longer body overflows into follow-on
+   chunks rather than being dropped. Always retrievable alone — most "has anyone hit this"
+   matches are body-to-body.
 2. **Message chunks** = consecutive comments packed to ~800 tokens, never splitting a comment
    across chunks unless it exceeds the budget alone.
 3. **Code fences are kept whole** where possible. Stack traces are the highest-signal text in a

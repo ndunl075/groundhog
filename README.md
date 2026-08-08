@@ -28,10 +28,10 @@ $ groundhog ask "hydration mismatch after upgrading to app router"
 Early. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and build order.
 
 - [x] Architecture
-- [ ] Store
-- [ ] GitHub ingestion
-- [ ] Chunking
-- [ ] BM25 search
+- [x] Store
+- [x] GitHub ingestion
+- [x] Chunking
+- [x] BM25 search
 - [ ] Local embeddings + hybrid retrieval
 - [ ] Context packing
 - [ ] CLI
