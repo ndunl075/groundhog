@@ -7,7 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { Store } from "../src/store/db.ts";
 import { buildIndex } from "../src/index/build.ts";
-import { StorePool } from "../src/mcp/tools.ts";
+import { StorePool, searchThreads } from "../src/mcp/tools.ts";
 import { parseRepoRef, threadId } from "../src/types.ts";
 import type { Thread } from "../src/types.ts";
 
@@ -225,14 +225,28 @@ test("a write follows a read on the same repo without failing", () => {
   }
 });
 
-test("sync_repo works after search_threads over a live session", async () => {
-  await withClient(async (client) => {
-    await client.callTool({ name: "search_threads", arguments: { query: "ENOENT" } });
-    const result = await client.callTool({ name: "sync_repo", arguments: { repo: "acme/widgets" } });
-    // The repo is fake, so the network call fails — but it must not fail with
-    // a readonly-database error from the pool.
-    assert.doesNotMatch(textOf(result), /readonly database/i);
-  });
+test("the search handler leaves the pool able to serve a write", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "groundhog-handler-"));
+  const previous = process.env["GROUNDHOG_DATA_DIR"];
+  process.env["GROUNDHOG_DATA_DIR"] = dir;
+  try {
+    seedRepo(dir, "acme/widgets");
+    const pool = new StorePool();
+
+    // Exercises the real handler's own pool.get call, then the write that
+    // sync_repo performs. Deliberately not driving sync_repo itself: it would
+    // reach for the network, which no test should depend on.
+    const found = await searchThreads(pool, { query: "ENOENT", repo: "acme/widgets" });
+    assert.match(found, /#7/);
+
+    const writable = pool.get(parseRepoRef("acme/widgets"));
+    assert.doesNotThrow(() => writable.setMeta("last_sync", "2026-08-08T00:00:00Z"));
+    pool.closeAll();
+  } finally {
+    if (previous === undefined) delete process.env["GROUNDHOG_DATA_DIR"];
+    else process.env["GROUNDHOG_DATA_DIR"] = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the store pool closes idle handles", () => {
