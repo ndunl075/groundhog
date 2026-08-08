@@ -23,6 +23,37 @@ $ groundhog ask "hydration mismatch after upgrading to app router"
         "…same root cause as #41930, the culprit was a browser extension…"
 ```
 
+## Why not just let the agent read GitHub?
+
+Because reading GitHub is expensive, and searching it doesn't work.
+
+Same question, same three threads, measured on `sindresorhus/execa`:
+
+| | tokens |
+|---|---|
+| Agent opens the 3 issues via the GitHub API | **7,705** |
+| Groundhog's packed evidence | **520** |
+
+**~15× less context for the same answer** — and that is the *generous* comparison, because it
+assumes the agent already knew which three issues to open.
+
+It usually doesn't. `gh search issues "kill child processes"` on that repo returns **nothing**:
+GitHub matches keywords against titles and bodies, and the thread you want is titled *"Ability to
+kill all descendents of the child process"*, with the actual answer eleven comments down. Groundhog
+finds it because it indexes every comment, ranks with BM25 (plus optional embeddings), and pushes
+threads that were actually *resolved* to the top.
+
+So the agent gets 520 tokens of quotes **plus the issue numbers and URLs**, and pulls a full thread
+only when it genuinely needs one — instead of paying 4,077 tokens for a thread up front on the
+chance it's relevant. The budget is capped (`--budget`, default 4000), so a search can never blow
+out a context window. A raw issue fetch on a 226-comment thread absolutely can.
+
+The index is paid for once. After that, every query costs **zero API calls**, hits no rate limit,
+runs in milliseconds, and works offline.
+
+*Reproduce it: `groundhog ask "kill child processes" --limit 3` against
+`gh issue view <n> --comments` for the same numbers.*
+
 ## Status
 
 v0.1 — everything below works end to end. See [ARCHITECTURE.md](ARCHITECTURE.md) for the design.
@@ -70,8 +101,19 @@ Unauthenticated works too, at GitHub's 60 req/h.
 }
 ```
 
-Gives your assistant five tools: `search_threads`, `get_thread`, `find_similar`, `sync_repo`,
-`list_repos`.
+Gives your assistant five tools:
+
+| Tool | What the agent uses it for |
+|---|---|
+| `find_similar` | Paste an error or stack trace — "has anyone hit this?" |
+| `search_threads` | Question-shaped search, filtered by kind / state / label / author |
+| `get_thread` | Read one thread in full, every comment in order |
+| `list_repos` | What's indexed locally, and how fresh |
+| `sync_repo` | Refresh — the only one that touches the network |
+
+The server runs as a child process over stdio: no port, no daemon, nothing left running. Results
+come back as **evidence, not conclusions** — quotes, state, whether it got fixed, and the link.
+Groundhog runs no LLM, because the agent calling it already is one.
 
 ## Staying fresh
 
