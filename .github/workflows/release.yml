@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: groundhog-linux-x64
+            binary: groundhog
+          - os: windows-latest
+            target: groundhog-windows-x64.exe
+            binary: groundhog.exe
+          - os: macos-latest
+            target: groundhog-macos-arm64
+            binary: groundhog
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --omit=optional
+      - run: npm run build:exe
+
+      - name: Smoke test
+        shell: bash
+        run: build/${{ matrix.binary }} --version
+
+      - name: Name the artifact for its platform
+        shell: bash
+        run: mv "build/${{ matrix.binary }}" "build/${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: build/${{ matrix.target }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            Standalone builds — no Node.js required.
+
+            These executables include lexical (BM25) search. Semantic search
+            needs the optional embedding model, which ships only with the npm
+            package: `npm i -g groundhog-rag && groundhog embed --enable`.

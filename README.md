@@ -25,18 +25,7 @@ $ groundhog ask "hydration mismatch after upgrading to app router"
 
 ## Status
 
-Early. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and build order.
-
-- [x] Architecture
-- [x] Store
-- [x] GitHub ingestion
-- [x] Chunking
-- [x] BM25 search
-- [x] Local embeddings + hybrid retrieval
-- [x] Context packing
-- [x] CLI
-- [x] MCP server
-- [ ] Packaging
+v0.1 — everything below works end to end. See [ARCHITECTURE.md](ARCHITECTURE.md) for the design.
 
 ## Install
 
@@ -51,8 +40,10 @@ git clone https://github.com/ndunl075/groundhog.git
 cd groundhog && npm install && npm run build && npm link
 ```
 
-Standalone `.exe` builds land on the [releases page](https://github.com/ndunl075/groundhog/releases)
-— no Node install required.
+Or grab a standalone binary from the
+[releases page](https://github.com/ndunl075/groundhog/releases) — no Node install required. The
+standalone build does exact-word search; semantic search needs the npm install, because the
+embedding runtime ships platform-specific native libraries too large to bundle.
 
 ## Use
 
@@ -93,6 +84,18 @@ thread. Nothing is ever sent to an inference API, because there isn't one.
 Your queries never leave the machine — `groundhog ask` makes no network calls at all. The only
 outbound requests are to the forge API you pointed it at, to fetch the threads. No telemetry, no
 update pings.
+
+## Developing
+
+```
+npm test            # 75 tests, no network needed
+npm run typecheck
+npm run build       # tsc -> dist/
+npm run build:exe   # single-file binary -> build/
+```
+
+Tests run straight off the TypeScript source via Node's type stripping, so there's no build step in
+the edit-test loop.
 
 ## Brand assets
 

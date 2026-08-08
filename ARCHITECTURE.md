@@ -202,10 +202,15 @@ something.
 ## 12. Distribution
 
 - **Clone / npm** — `npm i -g groundhog-rag`, `better-sqlite3` builds from prebuilt binaries.
-- **`.exe`** — Node SEA. The `better-sqlite3` `.node` binary is embedded as a SEA asset and
-  unpacked to the data dir on first run, then loaded from there. The ONNX model is *never* bundled;
-  it's fetched on `embed --enable`, keeping the exe near 50 MB.
-- GitHub Actions builds Windows/macOS/Linux artifacts on tag.
+  This is the full build: lexical *and* semantic search.
+- **`.exe`** — Node SEA, ~85 MB, no Node install required. esbuild bundles the CLI to one CJS file;
+  the `better-sqlite3` `.node` binary rides along as a SEA asset and is unpacked to the data dir on
+  first run. Because SEA's `require` resolves built-ins only, the addon is loaded through
+  `createRequire` and handed to better-sqlite3 as an *object* rather than a path.
+
+  The executable is **lexical-only**. ONNX Runtime ships its own native libraries per platform, and
+  bundling them would multiply the binary size for a feature that is opt-in even in the full build.
+- GitHub Actions tests on Linux/macOS/Windows and builds the three executables on tag.
 
 ## 13. Privacy
 

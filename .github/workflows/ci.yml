@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The embedding model is a large optional download and no test needs it.
+      - run: npm ci --omit=optional
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+  executable:
+    name: exe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --omit=optional
+
+      - name: Build executable
+        run: npm run build:exe
+
+      # A binary that cannot answer --help is not a binary worth shipping.
+      - name: Smoke test
+        shell: bash
+        run: |
+          BIN=build/groundhog
+          [ "${{ runner.os }}" = "Windows" ] && BIN=build/groundhog.exe
+          "$BIN" --version
+          "$BIN" --help | grep -q "local RAG"
+          "$BIN" status

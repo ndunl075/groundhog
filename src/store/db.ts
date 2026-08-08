@@ -3,6 +3,7 @@ import type { Database as Db } from "better-sqlite3";
 import { existsSync } from "node:fs";
 import { MIGRATIONS, SCHEMA_VERSION } from "./schema.ts";
 import { dbPath, ensureRepoDir } from "./paths.ts";
+import { nativeBinding } from "./native.ts";
 import type {
   Chunk,
   Message,
@@ -45,7 +46,13 @@ export class Store {
     }
     if (!opts.readonly) ensureRepoDir(repo);
 
-    const db = new Database(path, { readonly: opts.readonly ?? false });
+    // better-sqlite3 v11 accepts a loaded addon object here; @types only
+    // declares the string form, hence the cast.
+    const binding = nativeBinding() as string | undefined;
+    const db = new Database(path, {
+      readonly: opts.readonly ?? false,
+      ...(binding ? { nativeBinding: binding } : {}),
+    });
     db.pragma("journal_mode = WAL");
     db.pragma("synchronous = NORMAL");
     db.pragma("foreign_keys = ON");
@@ -60,7 +67,8 @@ export class Store {
 
   /** In-memory store, for tests. */
   static memory(repo: RepoRef): Store {
-    const db = new Database(":memory:");
+    const binding = nativeBinding() as string | undefined;
+    const db = new Database(":memory:", binding ? { nativeBinding: binding } : {});
     db.pragma("foreign_keys = ON");
     const store = new Store(repo, db);
     store.migrate();
