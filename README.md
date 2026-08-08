@@ -1,0 +1,95 @@
+# 🦫 Groundhog
+
+**Local RAG over any git repo's issues, PRs, and discussions.** No cloud.
+
+Point it at a repo. It indexes every issue, pull request, and discussion thread into a local SQLite
+file, then answers *"has anyone hit this bug before?"* without you leaving the terminal — and
+without sending your queries anywhere.
+
+Most RAG tools index the code and ignore the tracker. The tracker is where the answers are.
+
+```
+$ groundhog index vercel/next.js
+$ groundhog ask "hydration mismatch after upgrading to app router"
+
+#41930  Hydration failed because the initial UI does not match     closed · fixed in #42011
+        "…this happens when a Server Component reads Date.now()…"
+
+#43112  App Router: text content does not match server-rendered    closed
+        "…same root cause as #41930, the culprit was a browser extension…"
+```
+
+## Status
+
+Early. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and build order.
+
+- [x] Architecture
+- [ ] Store
+- [ ] GitHub ingestion
+- [ ] Chunking
+- [ ] BM25 search
+- [ ] Local embeddings + hybrid retrieval
+- [ ] Context packing
+- [ ] CLI
+- [ ] MCP server
+- [ ] Packaging
+
+## Install
+
+```
+npm i -g groundhog-rag
+```
+
+Or clone it:
+
+```
+git clone https://github.com/ndunl075/groundhog.git
+cd groundhog && npm install && npm run build && npm link
+```
+
+Standalone `.exe` builds land on the [releases page](https://github.com/ndunl075/groundhog/releases)
+— no Node install required.
+
+## Use
+
+```
+groundhog index <owner/repo>     first full index
+groundhog sync                   incremental refresh
+groundhog ask "<question>"       ranked evidence from prior threads
+groundhog show <number>          full reconstructed thread
+groundhog status                 what's indexed, how fresh
+groundhog serve                  MCP server on stdio
+```
+
+Set `GITHUB_TOKEN`, or just be logged into `gh` — Groundhog picks the token up automatically.
+Unauthenticated works too, at GitHub's 60 req/h.
+
+## As an MCP server
+
+```json
+{
+  "mcpServers": {
+    "groundhog": { "command": "groundhog", "args": ["serve"] }
+  }
+}
+```
+
+Gives your assistant five tools: `search_threads`, `get_thread`, `find_similar`, `sync_repo`,
+`list_repos`.
+
+## Why it's light
+
+No daemon, no file watcher, no background sync — zero CPU when idle. Search is SQLite FTS5, which
+is plenty on its own because bug reports quote each other's exact error strings. Semantic search is
+**optional**: `groundhog embed --enable` downloads a 23 MB int8 MiniLM that runs on CPU in a worker
+thread. Nothing is ever sent to an inference API, because there isn't one.
+
+## Privacy
+
+Your queries never leave the machine — `groundhog ask` makes no network calls at all. The only
+outbound requests are to the forge API you pointed it at, to fetch the threads. No telemetry, no
+update pings.
+
+## License
+
+MIT

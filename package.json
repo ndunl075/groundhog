@@ -1,0 +1,59 @@
+{
+  "name": "groundhog-rag",
+  "version": "0.1.0",
+  "description": "Local RAG over any git repo's issues, PRs, and discussions. No cloud.",
+  "type": "module",
+  "license": "MIT",
+  "author": "ndunl075",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ndunl075/groundhog.git"
+  },
+  "homepage": "https://github.com/ndunl075/groundhog#readme",
+  "bugs": {
+    "url": "https://github.com/ndunl075/groundhog/issues"
+  },
+  "keywords": [
+    "rag",
+    "mcp",
+    "github",
+    "issues",
+    "search",
+    "local-first",
+    "sqlite",
+    "offline"
+  ],
+  "bin": {
+    "groundhog": "dist/cli/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "ARCHITECTURE.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1"
+  },
+  "optionalDependencies": {
+    "@huggingface/transformers": "^3.3.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.1",
+    "typescript": "^5.7.3"
+  }
+}
