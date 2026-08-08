@@ -14,6 +14,10 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": false,
     "verbatimModuleSyntax": true,
+    // Source imports use `.ts` specifiers so `node --experimental-strip-types`
+    // can run src and tests directly; tsc rewrites them to `.js` on emit.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/groundhog-logo.png" alt="Groundhog logo" width="240" />
+</p>
+
 # 🦫 Groundhog
 
 **Local RAG over any git repo's issues, PRs, and discussions.** No cloud.
@@ -89,6 +93,15 @@ thread. Nothing is ever sent to an inference API, because there isn't one.
 Your queries never leave the machine — `groundhog ask` makes no network calls at all. The only
 outbound requests are to the forge API you pointed it at, to fetch the threads. No telemetry, no
 update pings.
+
+## Brand assets
+
+The reusable logo and favicon files live in [`assets/`](./assets/):
+
+- `groundhog-logo.png` — transparent 1024px master for documentation and product UI
+- `favicon.ico`, `favicon-16.png`, and `favicon-32.png` — browser icons
+- `apple-touch-icon.png` — 180px Apple touch icon
+- `icon-192.png` and `icon-512.png` — app and PWA icon sizes
 
 ## License
 
