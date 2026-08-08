@@ -9,7 +9,7 @@ terminal or from any MCP client. Nothing you search leaves your machine.
 | Constraint | Consequence |
 |---|---|
 | No cloud inference | Retrieval is lexical + local embeddings. No API keys, no telemetry. Only network call is to the forge API to *fetch* threads. |
-| Must not slow the PC down | No daemon, no watcher, no background sync. Work happens only during an explicit `index`/`sync`, and inside a worker thread. Idle cost of the MCP server ≈ one blocked stdio read. |
+| Must not slow the PC down | No daemon, no watcher, no resident process. Work happens only during an explicit `index`/`sync`, or a ~2s daily job the *OS* scheduler runs. Idle cost of the MCP server ≈ one blocked stdio read. |
 | Scoped to the tracker, not the code | Documents are threads (issue/PR/discussion + comments + reviews), never source files. Ranking signals are tracker-native: state, labels, linked commits, resolution. |
 | Cloneable *and* shippable as one file | Pure-TS core, one native dependency, packaged both as an npm bin and a Node SEA `.exe`. |
 
@@ -43,11 +43,13 @@ query ──► BM25 ─┐
 src/
   store/        schema.ts  migrate.ts  db.ts        SQLite open, PRAGMAs, migrations
   ingest/       github.ts  types.ts    sync.ts      forge adapters + incremental cursor
-  index/        chunk.ts   embed.ts    build.ts     chunking, worker-thread embedding
+  index/        chunk.ts   embed.ts    build.ts     chunking, in-process embedding
   search/       bm25.ts    vector.ts   fuse.ts      retrieval + RRF + rollup
   pack/         context.ts                          evidence formatting, token budget
   cli/          index.ts   commands/                the `groundhog` binary
   mcp/          server.ts  tools.ts                 stdio MCP server
+  schedule/     index.ts                             OS-native daily sync task
+  freshness.ts                                       index age + staleness notices
 ```
 
 Dependency direction is strictly downward: `mcp` and `cli` both depend on `search`/`ingest`; nothing
@@ -85,8 +87,9 @@ this scale, so there isn't one. Above ~250 k chunks the loader falls back to str
 
 ## 6. Ingestion
 
-GitHub via **GraphQL** (v4), one paginated query per thread kind, 100 nodes per page, comments
-fetched inline up to 100 then backfilled via REST for long threads. Auth resolves in order:
+GitHub via **GraphQL** (v4), one paginated query per thread kind, 25 threads per page, 40 comments
+fetched inline; longer threads are backfilled over REST from page 1 and merged by node id, since
+the two APIs return the same comments under the same ids and `message.id` is a primary key. Auth resolves in order:
 `GITHUB_TOKEN` → `gh auth token` → unauthenticated (60 req/h, enough to try it on a small repo).
 
 **Incremental sync.** `meta.sync_cursor` stores the max `updated_at` seen per kind. `sync` requests
@@ -159,6 +162,7 @@ groundhog show <number>          full reconstructed thread
 groundhog status                 repos, thread counts, last sync, db size
 groundhog serve                  start the MCP server on stdio
 groundhog embed --enable         download the model, backfill vectors
+groundhog schedule --enable      register a daily OS-level sync task
 ```
 
 ### MCP server
@@ -184,7 +188,8 @@ Targets on a mid-range laptop, measured against a 5 000-thread repo:
 | Operation | Target |
 |---|---|
 | Cold full index, BM25 only | < 90 s (API-bound) |
-| Embedding backfill, 20 k chunks | < 6 min, single worker thread, `nice`d |
+| Embedding backfill, 20 k chunks | < 6 min (~18 chunks/s measured) |
+| Incremental sync, quiet repo | ~2 s, a handful of API calls |
 | Incremental sync, quiet day | < 3 s |
 | Query, BM25 only | < 20 ms |
 | Query, hybrid, warm | < 60 ms |
@@ -196,8 +201,15 @@ pool, so the event loop stays free without a worker thread — which also keeps 
 build simple, since spawning workers out of a SEA is not. The model is loaded lazily and only when a
 repo actually has vectors, so a Groundhog that never enabled embeddings never pays the ~150 MB.
 
-No file watchers, no timers, no background sync — Groundhog uses zero CPU when you aren't asking it
+No file watchers, no timers, no resident process — Groundhog uses zero CPU when you aren't asking it
 something.
+
+**Freshness** is handled by the OS scheduler rather than a daemon: `groundhog schedule --enable`
+registers a Task Scheduler entry, launchd agent, or systemd user timer that runs `sync --all` daily.
+A two-second job once a day does not justify a resident process, and the OS scheduler already
+survives reboots. Whenever the schedule has not kept up, staleness is surfaced at every point
+results are shown — CLI and MCP alike — because a tracker answer is only as good as its last sync,
+and `no matches` is the conclusion a stale index gets wrong in the direction that matters.
 
 ## 12. Distribution
 

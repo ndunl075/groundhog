@@ -53,6 +53,7 @@ groundhog sync                   incremental refresh
 groundhog ask "<question>"       ranked evidence from prior threads
 groundhog show <number>          full reconstructed thread
 groundhog status                 what's indexed, how fresh
+groundhog schedule --enable      refresh every index daily (no daemon)
 groundhog serve                  MCP server on stdio
 ```
 
@@ -72,12 +73,31 @@ Unauthenticated works too, at GitHub's 60 req/h.
 Gives your assistant five tools: `search_threads`, `get_thread`, `find_similar`, `sync_repo`,
 `list_repos`.
 
+## Staying fresh
+
+An index frozen at install time misses exactly the issues you are most likely to hit. So:
+
+```
+groundhog schedule --enable --at 09:00
+```
+
+That registers an **OS-native scheduled task** — Windows Task Scheduler, launchd, or a systemd user
+timer — that runs `groundhog sync --all` once a day. A quiet refresh takes about two seconds and a
+handful of API calls. Nothing runs in between: there is no daemon and no resident process.
+
+If the schedule has not run — laptop was off, say — `ask` and `status` tell you how old the index is
+rather than letting stale results look authoritative. The MCP tools report it too, so an assistant
+knows to sync before concluding nobody has reported your bug.
+
+`groundhog schedule` alone shows the current state; `--disable` removes it.
+
 ## Why it's light
 
-No daemon, no file watcher, no background sync — zero CPU when idle. Search is SQLite FTS5, which
+No daemon, no file watcher, no resident process — zero CPU when idle; freshness is a ~2s job the OS
+scheduler runs once a day. Search is SQLite FTS5, which
 is plenty on its own because bug reports quote each other's exact error strings. Semantic search is
-**optional**: `groundhog embed --enable` downloads a 23 MB int8 MiniLM that runs on CPU in a worker
-thread. Nothing is ever sent to an inference API, because there isn't one.
+**optional**: `groundhog embed --enable` downloads a 23 MB int8 MiniLM that runs on CPU, loaded
+lazily and only when a repo actually has vectors. Nothing is ever sent to an inference API, because there isn't one.
 
 ## Privacy
 

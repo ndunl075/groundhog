@@ -7,6 +7,7 @@ import { askCommand } from "./commands/ask.ts";
 import { showCommand } from "./commands/show.ts";
 import { statusCommand } from "./commands/status.ts";
 import { embedCommand } from "./commands/embed.ts";
+import { scheduleCommand } from "./commands/schedule.ts";
 import { bold, dim, fail, out } from "./output.ts";
 import type { ThreadKind, ThreadState } from "../types.ts";
 
@@ -24,6 +25,7 @@ ${bold("COMMANDS")}
   show <number>          print a full thread
   status                 what is indexed, how fresh, how big
   embed                  enable/disable semantic search
+  schedule               keep every index fresh automatically
   serve                  run the MCP server on stdio
 
 ${bold("COMMON OPTIONS")}
@@ -47,6 +49,7 @@ ${bold("EXAMPLES")}
   groundhog ask "hydration mismatch after upgrading"
   groundhog ask "why was the cache changed" --kind pr --state merged
   groundhog embed --enable
+  groundhog schedule --enable --at 09:00
 `;
 
 const OPTIONS: NonNullable<ParseArgsConfig["options"]> = {
@@ -67,6 +70,7 @@ const OPTIONS: NonNullable<ParseArgsConfig["options"]> = {
   enable: { type: "boolean" },
   disable: { type: "boolean" },
   model: { type: "string" },
+  at: { type: "string" },
   embed: { type: "boolean" },
 };
 
@@ -138,6 +142,13 @@ async function main(argv: string[]): Promise<void> {
         enable: values["enable"] === true,
         disable: values["disable"] === true,
         model: asString(values["model"]),
+      });
+
+    case "schedule":
+      return scheduleCommand({
+        enable: values["enable"] === true,
+        disable: values["disable"] === true,
+        at: asString(values["at"]),
       });
 
     case "serve": {

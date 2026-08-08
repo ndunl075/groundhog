@@ -4,8 +4,10 @@ import { packEvidence, renderEvidence } from "../../pack/context.ts";
 import { embeddingsEnabled } from "../../index/embed.ts";
 import type { SearchFilters } from "../../search/types.ts";
 import type { ThreadKind, ThreadState } from "../../types.ts";
+import { repoSlug } from "../../types.ts";
+import { freshnessOf, staleNotice } from "../../freshness.ts";
 import { resolveRepo } from "../repo.ts";
-import { bold, cyan, dim, info, out, stateColor } from "../output.ts";
+import { bold, cyan, dim, info, out, stateColor, yellow } from "../output.ts";
 
 export interface AskArgs {
   query: string;
@@ -63,6 +65,8 @@ export async function askCommand(args: AskArgs): Promise<void> {
               excerpts: item.excerpts,
             })),
             truncated: packed.truncated,
+            lastSync: store.getMeta("last_sync"),
+            stale: freshnessOf(store.getMeta("last_sync")).stale,
           },
           null,
           2,
@@ -95,6 +99,11 @@ export async function askCommand(args: AskArgs): Promise<void> {
     }
 
     if (packed.truncated) info(dim("(more matches available — raise --limit)"));
+
+    // A tracker answer is only as good as its last sync, so say so rather than
+    // letting a stale index look authoritative.
+    const notice = staleNotice(freshnessOf(store.getMeta("last_sync")), repoSlug(repo));
+    if (notice) info(yellow(notice));
   } finally {
     store.close();
   }

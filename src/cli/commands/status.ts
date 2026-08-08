@@ -3,6 +3,7 @@ import { listIndexedRepos, dataDir } from "../../store/paths.ts";
 import { embeddingModel } from "../../index/embed.ts";
 import { repoSlug } from "../../types.ts";
 import { bold, dim, green, humanAge, humanBytes, out, yellow } from "../output.ts";
+import { freshnessOf } from "../../freshness.ts";
 
 export interface StatusArgs {
   json?: boolean;
@@ -59,7 +60,9 @@ export function statusCommand(args: StatusArgs): void {
         ? green(`semantic ${s.vectors}/${s.chunks}`)
         : yellow("lexical only");
 
-      out(`${bold(repoSlug(repo))}  ${dim(`synced ${humanAge(s.lastSync)}`)}`);
+      const fresh = freshnessOf(s.lastSync);
+      const age = fresh.stale ? yellow(`synced ${fresh.label}`) : dim(`synced ${fresh.label}`);
+      out(`${bold(repoSlug(repo))}  ${age}`);
       out(`  ${kinds || "no threads"} · ${s.chunks} chunks · ${semantic}`);
       out(`  ${dim(humanBytes(s.sizeBytes))}`);
       out();

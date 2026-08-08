@@ -9,6 +9,7 @@ import { listIndexedRepos } from "../store/paths.ts";
 import { parseRepoRef, repoSlug } from "../types.ts";
 import type { RepoRef, ThreadKind } from "../types.ts";
 import type { SearchFilters } from "../search/types.ts";
+import { freshnessOf, staleNotice } from "../freshness.ts";
 
 /**
  * Opens repo databases on demand and closes them once idle, so an MCP server
@@ -148,14 +149,21 @@ export async function searchThreads(
   const hits = await search(store, args.query, { limit: args.limit ?? 8, filters });
   const packed = packEvidence(store, hits);
 
+  // Reported to the caller so it can weigh a sync_repo before trusting the
+  // result — most of all when the result is "nothing found", which a stale
+  // index gets wrong in the one direction that matters.
+  const notice = staleNotice(freshnessOf(store.getMeta("last_sync")), repoSlug(repo));
+
   if (packed.items.length === 0) {
-    return `No threads in ${repoSlug(repo)} match "${args.query}".${
-      embeddingsEnabled(store)
-        ? ""
-        : "\n\nOnly exact-word search is enabled. `groundhog embed --enable` adds meaning-based matching."
-    }`;
+    const hint = embeddingsEnabled(store)
+      ? ""
+      : "\n\nOnly exact-word search is enabled. `groundhog embed --enable` adds meaning-based matching.";
+    const staleness = notice ? `\n\n[${notice}]` : "";
+    return `No threads in ${repoSlug(repo)} match "${args.query}".${hint}${staleness}`;
   }
-  return `${packed.items.length} matching threads in ${repoSlug(repo)}:\n\n${renderEvidence(packed)}`;
+
+  const body = `${packed.items.length} matching threads in ${repoSlug(repo)}:\n\n${renderEvidence(packed)}`;
+  return notice ? `${body}\n\n[${notice}]` : body;
 }
 
 export function getThread(
@@ -187,7 +195,12 @@ export async function findSimilar(
   const hits = await search(store, args.text, { limit: args.limit ?? 5 });
   const packed = packEvidence(store, hits, { budget: 3000 });
 
-  if (packed.items.length === 0) return `Nothing similar in ${repoSlug(repo)}.`;
+  if (packed.items.length === 0) {
+    const notice = staleNotice(freshnessOf(store.getMeta("last_sync")), repoSlug(repo));
+    return notice
+      ? `Nothing similar in ${repoSlug(repo)}. [${notice}]`
+      : `Nothing similar in ${repoSlug(repo)}.`;
+  }
 
   const resolved = packed.items.filter(
     (i) => i.thread.state !== "open" && i.thread.resolutionRef,
@@ -234,9 +247,10 @@ export function listRepos(pool: StorePool): string {
       .map(([kind, n]) => `${n} ${kind}${n === 1 ? "" : "s"}`)
       .join(", ");
     const model = embeddingModel(store);
+    const fresh = freshnessOf(s.lastSync);
     return `${repoSlug(repo)} — ${kinds || "empty"}, ${s.chunks} chunks, ${
       model ? `semantic (${model})` : "lexical only"
-    }, last synced ${s.lastSync ?? "never"}`;
+    }, last synced ${fresh.label}${fresh.stale ? " (stale)" : ""}`;
   });
 
   return lines.join("\n");
