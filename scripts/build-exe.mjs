@@ -40,24 +40,28 @@ mkdirSync(build, { recursive: true });
 // ---- 1. bundle -------------------------------------------------------------
 
 step("Bundling CLI");
-run(process.execPath, [
-  require.resolve("esbuild/bin/esbuild"),
-  "src/cli/index.ts",
-  "--bundle",
-  "--platform=node",
-  "--target=node22",
-  "--format=cjs",
-  `--outfile=${join(build, "groundhog.cjs")}`,
-  // The .node binary is an asset, not a module; `bindings` is only reached
-  // when nativeBinding is absent, which never happens inside the SEA.
-  "--external:better_sqlite3.node",
-  "--external:bindings",
-  // Optional and native-heavy: left out on purpose, see the header.
-  "--external:@huggingface/transformers",
-  "--external:onnxruntime-node",
-  "--external:sharp",
-  "--log-level=warning",
-]);
+// The JS API, not the bin: on Linux and macOS `esbuild/bin/esbuild` is the
+// native executable itself, so spawning it under node fails to parse.
+const esbuild = await import("esbuild");
+await esbuild.build({
+  entryPoints: [join(root, "src/cli/index.ts")],
+  bundle: true,
+  platform: "node",
+  target: "node22",
+  format: "cjs",
+  outfile: join(build, "groundhog.cjs"),
+  logLevel: "warning",
+  external: [
+    // The .node binary is an asset, not a module; `bindings` is only reached
+    // when nativeBinding is absent, which never happens inside the SEA.
+    "better_sqlite3.node",
+    "bindings",
+    // Optional and native-heavy: left out on purpose, see the header.
+    "@huggingface/transformers",
+    "onnxruntime-node",
+    "sharp",
+  ],
+});
 
 // ---- 2. SEA blob -----------------------------------------------------------
 
