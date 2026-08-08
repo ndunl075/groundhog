@@ -199,6 +199,42 @@ test("an unknown repo returns a message naming the fix", async () => {
   });
 });
 
+test("a write follows a read on the same repo without failing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "groundhog-rw-"));
+  const previous = process.env["GROUNDHOG_DATA_DIR"];
+  process.env["GROUNDHOG_DATA_DIR"] = dir;
+  try {
+    seedRepo(dir, "acme/widgets");
+    const pool = new StorePool();
+    const repo = parseRepoRef("acme/widgets");
+
+    // What search_threads does, then what sync_repo does. Sharing one
+    // read-only handle across both made the write fail.
+    pool.get(repo, { readonly: true }).stats();
+    const writable = pool.get(repo);
+    writable.setMeta("last_sync", "2026-08-08T00:00:00Z");
+    assert.equal(writable.getMeta("last_sync"), "2026-08-08T00:00:00Z");
+
+    // And the reverse order still works.
+    assert.equal(pool.get(repo, { readonly: true }).getMeta("last_sync"), "2026-08-08T00:00:00Z");
+    pool.closeAll();
+  } finally {
+    if (previous === undefined) delete process.env["GROUNDHOG_DATA_DIR"];
+    else process.env["GROUNDHOG_DATA_DIR"] = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("sync_repo works after search_threads over a live session", async () => {
+  await withClient(async (client) => {
+    await client.callTool({ name: "search_threads", arguments: { query: "ENOENT" } });
+    const result = await client.callTool({ name: "sync_repo", arguments: { repo: "acme/widgets" } });
+    // The repo is fake, so the network call fails — but it must not fail with
+    // a readonly-database error from the pool.
+    assert.doesNotMatch(textOf(result), /readonly database/i);
+  });
+});
+
 test("the store pool closes idle handles", () => {
   const dir = mkdtempSync(join(tmpdir(), "groundhog-pool-"));
   const previous = process.env["GROUNDHOG_DATA_DIR"];

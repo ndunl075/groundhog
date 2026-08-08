@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import Database from "better-sqlite3";
 import { Store } from "../src/store/db.ts";
+import { dbPath } from "../src/store/paths.ts";
 import { parseRepoRef, threadId } from "../src/types.ts";
 import type { Thread, Message } from "../src/types.ts";
 
@@ -180,4 +185,40 @@ test("staleThreadIds finds threads that changed since indexing", () => {
   store.upsertThread(makeThread(6, { updatedAt: "2026-01-04T00:00:00Z" }));
   assert.deepEqual(store.staleThreadIds(), ["issue:6"]);
   store.close();
+});
+
+test("a read-only open refuses a schema it cannot read", () => {
+  const dir = mkdtempSync(join(tmpdir(), "groundhog-schema-"));
+  const previous = process.env["GROUNDHOG_DATA_DIR"];
+  process.env["GROUNDHOG_DATA_DIR"] = dir;
+  try {
+    const store = Store.open(repo);
+    store.upsertThread(makeThread(1));
+    store.close();
+
+    // Tampering goes through a raw handle: Store.open itself refuses the
+    // versions being staged here.
+    const setVersion = (version: number): void => {
+      const raw = new Database(dbPath(repo));
+      raw.pragma(`user_version = ${version}`);
+      raw.close();
+    };
+
+    setVersion(99); // as if a future build wrote it
+    assert.throws(() => Store.open(repo, { readonly: true }), /newer Groundhog/);
+
+    setVersion(0); // as if an older build left it behind
+    assert.throws(() => Store.open(repo, { readonly: true }), /older schema/);
+
+    // A rejected open must not leave the handle open — on Windows that locks
+    // the file, so the next command reports EBUSY instead of the real reason.
+    setVersion(1);
+    const reopened = Store.open(repo, { readonly: true });
+    assert.equal(reopened.getThread("issue:1")?.number, 1);
+    reopened.close();
+  } finally {
+    if (previous === undefined) delete process.env["GROUNDHOG_DATA_DIR"];
+    else process.env["GROUNDHOG_DATA_DIR"] = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Store } from "../src/store/db.ts";
 import { sync } from "../src/ingest/sync.ts";
+import { mergeMessages } from "../src/ingest/github.ts";
 import type { Forge, IngestedThread, FetchOptions } from "../src/ingest/types.ts";
 import { parseRepoRef, threadId } from "../src/types.ts";
-import type { ThreadKind } from "../src/types.ts";
+import type { ThreadKind, Message } from "../src/types.ts";
 
 const repo = parseRepoRef("acme/widgets");
 
@@ -132,4 +133,74 @@ test("unsupported kinds are skipped", async () => {
   );
   assert.equal(result.fetched, 0);
   store.close();
+});
+
+test("mergeMessages drops the GraphQL/REST overlap instead of duplicating ids", () => {
+  const msg = (id: string, createdAt: string, body: string): Message => ({
+    id,
+    threadId: "issue:1",
+    kind: "comment",
+    author: "dev",
+    body,
+    createdAt,
+    url: null,
+    ord: 0,
+  });
+
+  // GraphQL returned the first two; REST page 1 returns those two again plus more.
+  const inline = [msg("a", "2026-01-01T00:00:00Z", "first"), msg("b", "2026-01-02T00:00:00Z", "second")];
+  const rest = [
+    msg("a", "2026-01-01T00:00:00Z", "first"),
+    msg("b", "2026-01-02T00:00:00Z", "second"),
+    msg("c", "2026-01-03T00:00:00Z", "third"),
+  ];
+
+  const merged = mergeMessages(inline, rest);
+  assert.equal(merged.length, 3);
+  assert.deepEqual(merged.map((m) => m.id), ["a", "b", "c"]);
+  assert.deepEqual(merged.map((m) => m.ord), [0, 1, 2]);
+  assert.equal(new Set(merged.map((m) => m.id)).size, merged.length);
+});
+
+test("merged messages store without violating the primary key", () => {
+  const store = Store.memory(repo);
+  store.upsertThread(ingested(1, "2026-02-01T00:00:00Z").thread);
+
+  const dupe = (id: string, createdAt: string): Message => ({
+    id,
+    threadId: "issue:1",
+    kind: "comment",
+    author: "dev",
+    body: "text",
+    createdAt,
+    url: null,
+    ord: 0,
+  });
+  const inline = [dupe("x", "2026-01-01T00:00:00Z")];
+  const rest = [dupe("x", "2026-01-01T00:00:00Z"), dupe("y", "2026-01-02T00:00:00Z")];
+
+  // Appending instead of merging is what used to throw.
+  assert.throws(() => store.replaceMessages("issue:1", [...inline, ...rest]), /UNIQUE|constraint/i);
+  store.replaceMessages("issue:1", mergeMessages(inline, rest));
+  assert.equal(store.getMessages("issue:1").length, 2);
+  store.close();
+});
+
+test("mergeMessages orders a thread chronologically regardless of source order", () => {
+  const at = (id: string, createdAt: string): Message => ({
+    id,
+    threadId: "issue:1",
+    kind: "comment",
+    author: null,
+    body: "b",
+    createdAt,
+    url: null,
+    ord: 99,
+  });
+  const merged = mergeMessages(
+    [at("late", "2026-05-01T00:00:00Z")],
+    [at("early", "2026-01-01T00:00:00Z"), at("mid", "2026-03-01T00:00:00Z")],
+  );
+  assert.deepEqual(merged.map((m) => m.id), ["early", "mid", "late"]);
+  assert.deepEqual(merged.map((m) => m.ord), [0, 1, 2]);
 });

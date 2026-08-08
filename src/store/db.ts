@@ -61,7 +61,18 @@ export class Store {
     db.pragma("temp_store = MEMORY");
 
     const store = new Store(repo, db);
-    if (!opts.readonly) store.migrate();
+    try {
+      // A read-only open cannot migrate, but it still has to refuse a schema it
+      // does not understand — otherwise `ask` reports raw SQL errors about
+      // missing columns instead of saying the index needs attention.
+      if (opts.readonly) store.checkVersion();
+      else store.migrate();
+    } catch (err) {
+      // Leaving the handle open on a rejected index locks the file on Windows,
+      // so the next command fails with EBUSY instead of the real reason.
+      db.close();
+      throw err;
+    }
     return store;
   }
 
@@ -75,13 +86,24 @@ export class Store {
     return store;
   }
 
-  private migrate(): void {
+  /** Rejects a schema this build cannot read, in either direction. */
+  private checkVersion(): number {
     const current = this.db.pragma("user_version", { simple: true }) as number;
     if (current > SCHEMA_VERSION) {
       throw new Error(
         `Index was written by a newer Groundhog (schema ${current} > ${SCHEMA_VERSION}). Upgrade, or delete the index.`,
       );
     }
+    if (current < SCHEMA_VERSION && this.db.readonly) {
+      throw new Error(
+        `Index uses an older schema (${current} < ${SCHEMA_VERSION}). Run: groundhog sync ${this.repo.owner}/${this.repo.name}`,
+      );
+    }
+    return current;
+  }
+
+  private migrate(): void {
+    const current = this.checkVersion();
     for (let v = current; v < SCHEMA_VERSION; v++) {
       this.db.exec("BEGIN");
       try {

@@ -23,7 +23,13 @@ export class StorePool {
   }
 
   get(repo: RepoRef, opts: { readonly?: boolean } = {}): Store {
-    const key = `${repo.host}/${repo.owner}/${repo.name}`;
+    // Keyed by access mode as well as repo. Handing a read-only handle to
+    // sync_repo fails with "attempt to write a readonly database", and
+    // upgrading in place would close a handle a concurrent read may still be
+    // using — so the two modes get their own connections. SQLite in WAL mode
+    // is happy with both, and the pool holds at most two per repo.
+    const mode = opts.readonly ? "ro" : "rw";
+    const key = `${repo.host}/${repo.owner}/${repo.name}:${mode}`;
     const existing = this.open.get(key);
     if (existing) {
       existing.timer.refresh();

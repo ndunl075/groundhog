@@ -162,12 +162,11 @@ export class GitHubForge implements Forge {
         const messages = this.toMessages(kind, thread.id, node);
         const truncated = node.comments?.pageInfo?.hasNextPage ?? false;
 
-        if (truncated) {
-          const extra = await this.backfillComments(kind, thread.id, node.number, messages.length);
-          messages.push(...extra);
-        }
+        const complete = truncated
+          ? mergeMessages(messages, await this.backfillComments(kind, thread.id, node.number))
+          : messages;
 
-        yield { thread, messages, truncated };
+        yield { thread, messages: complete, truncated };
         if (opts.max && ++yielded >= opts.max) return;
       }
 
@@ -240,19 +239,24 @@ export class GitHubForge implements Forge {
     return out;
   }
 
-  /** REST is simpler than nested GraphQL pagination for the rare long thread. */
+  /**
+   * REST is simpler than nested GraphQL pagination for the rare long thread.
+   *
+   * Paging starts at 1 rather than trying to skip what GraphQL already
+   * returned: the two APIs number comments differently, and for a PR the
+   * inline batch also contains reviews, so any offset arithmetic silently
+   * loses comments. mergeMessages drops the resulting overlap instead.
+   */
   private async backfillComments(
     kind: ThreadKind,
     tid: string,
     number: number,
-    have: number,
   ): Promise<Message[]> {
     if (kind === "discussion") return []; // no REST equivalent; GraphQL page is enough
     const path = `/repos/${this.repo.owner}/${this.repo.name}/issues/${number}/comments`;
     const out: Message[] = [];
-    let page = Math.floor(have / 100) + 1;
 
-    for (; page <= 20; page++) {
+    for (let page = 1; page <= 20; page++) {
       const batch = await this.rest<RestComment[]>(`${path}?per_page=100&page=${page}`);
       if (!Array.isArray(batch) || batch.length === 0) break;
       for (const c of batch) {
@@ -359,6 +363,25 @@ export class GitHubForge implements Forge {
 }
 
 // ---- helpers ---------------------------------------------------------------
+
+/**
+ * Combines the inline GraphQL messages with the REST backfill.
+ *
+ * The two overlap by design — GraphQL and REST return the same comments under
+ * the same node ids, and `message.id` is a primary key, so appending blindly
+ * makes the whole thread fail to store. First writer wins, since the GraphQL
+ * batch is the one carrying reviews.
+ */
+export function mergeMessages(primary: Message[], extra: Message[]): Message[] {
+  const byId = new Map<string, Message>();
+  for (const message of [...primary, ...extra]) {
+    if (!byId.has(message.id)) byId.set(message.id, message);
+  }
+
+  const merged = [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  merged.forEach((message, i) => (message.ord = i));
+  return merged;
+}
 
 function resolutionRef(node: GraphQLNode): string | null {
   if (node.answer?.url) return node.answer.url;
