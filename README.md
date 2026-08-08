@@ -34,7 +34,7 @@ Early. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and build orde
 - [x] BM25 search
 - [x] Local embeddings + hybrid retrieval
 - [x] Context packing
-- [ ] CLI
+- [x] CLI
 - [ ] MCP server
 - [ ] Packaging
 
