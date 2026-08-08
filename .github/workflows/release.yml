@@ -34,7 +34,9 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci --omit=optional
+      # Full install: esbuild's platform binary is an optional dependency of
+      # esbuild itself, and the build needs it.
+      - run: npm ci
       - run: npm run build:exe
 
       - name: Smoke test

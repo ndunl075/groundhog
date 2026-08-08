@@ -86,9 +86,17 @@ async function runExtractor(
   return out;
 }
 
+/**
+ * Held in a variable on purpose: a literal specifier would make TypeScript
+ * resolve the package at compile time, so a checkout without the optional
+ * dependency installed would fail to typecheck. It also stops the bundler
+ * pulling ONNX Runtime into the single-file build.
+ */
+const TRANSFORMERS = "@huggingface/transformers";
+
 async function importTransformers(): Promise<TransformersModule> {
   try {
-    return (await import("@huggingface/transformers")) as unknown as TransformersModule;
+    return (await import(TRANSFORMERS)) as unknown as TransformersModule;
   } catch {
     throw new Error(
       "Semantic search needs the optional @huggingface/transformers package.\n" +
