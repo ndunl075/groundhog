@@ -44,12 +44,16 @@ ${bold("ASK OPTIONS")}
   --lexical              skip semantic search even when enabled
   --budget <n>           token budget for excerpts (default 4000)
 
+${bold("SCHEDULE OPTIONS")}
+  --enable / --disable   turn the daily sync task on or off
+  --at <HH:MM>           local time to run it (default 09:00)
+
 ${bold("EXAMPLES")}
   groundhog index vercel/next.js
   groundhog ask "hydration mismatch after upgrading"
   groundhog ask "why was the cache changed" --kind pr --state merged
   groundhog embed --enable
-  groundhog schedule --enable --at 09:00
+  groundhog schedule --enable --at 07:00
 `;
 
 const OPTIONS: NonNullable<ParseArgsConfig["options"]> = {

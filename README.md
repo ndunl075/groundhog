@@ -78,26 +78,39 @@ Gives your assistant five tools: `search_threads`, `get_thread`, `find_similar`,
 An index frozen at install time misses exactly the issues you are most likely to hit. So:
 
 ```
-groundhog schedule --enable --at 09:00
+groundhog schedule --enable --at 07:00
 ```
 
 That registers an **OS-native scheduled task** — Windows Task Scheduler, launchd, or a systemd user
-timer — that runs `groundhog sync --all` once a day. A quiet refresh takes about two seconds and a
-handful of API calls. Nothing runs in between: there is no daemon and no resident process.
+timer — that runs `groundhog sync --all` once a day at the time you name (default 09:00). A quiet
+refresh takes about two seconds and a handful of API calls. Nothing runs in between: there is no
+daemon and no resident process.
 
 If the schedule has not run — laptop was off, say — `ask` and `status` tell you how old the index is
-rather than letting stale results look authoritative. The MCP tools report it too, so an assistant
-knows to sync before concluding nobody has reported your bug.
+rather than letting stale results look authoritative:
 
-`groundhog schedule` alone shows the current state; `--disable` removes it.
+```
+Index last synced 5 days ago — newer threads are missing. Run: groundhog sync owner/repo
+```
+
+The MCP tools report it too, and specifically on a *zero-result* search, since "nobody has reported
+this" is the conclusion a stale index gets wrong in the direction that matters.
+
+| | |
+|---|---|
+| `groundhog schedule` | show current state |
+| `groundhog schedule --enable --at HH:MM` | enable, or change the time |
+| `groundhog schedule --disable` | remove it |
 
 ## Why it's light
 
-No daemon, no file watcher, no resident process — zero CPU when idle; freshness is a ~2s job the OS
-scheduler runs once a day. Search is SQLite FTS5, which
-is plenty on its own because bug reports quote each other's exact error strings. Semantic search is
-**optional**: `groundhog embed --enable` downloads a 23 MB int8 MiniLM that runs on CPU, loaded
-lazily and only when a repo actually has vectors. Nothing is ever sent to an inference API, because there isn't one.
+No daemon, no file watcher, no resident process — zero CPU when idle. Freshness is a ~2 s job the OS
+scheduler runs once a day, then exits.
+
+Search is SQLite FTS5, which is plenty on its own because bug reports quote each other's exact error
+strings. Semantic search is **optional**: `groundhog embed --enable` downloads a 23 MB int8 MiniLM
+that runs on CPU, loaded lazily and only when a repo actually has vectors. Nothing is ever sent to
+an inference API, because there isn't one.
 
 ## Privacy
 
