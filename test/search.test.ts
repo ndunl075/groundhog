@@ -66,7 +66,7 @@ function corpus(): Store {
   return store;
 }
 
-test("parseQuery drops stopwords and quotes every term", () => {
+test("parseQuery drops stopwords and quotes every term", async () => {
   const parsed = parseQuery("has anyone hit this ENOENT bug before");
   assert.equal(parsed.terms.includes("ENOENT"), true);
   assert.equal(parsed.terms.includes("has"), false);
@@ -74,7 +74,7 @@ test("parseQuery drops stopwords and quotes every term", () => {
   assert.match(parsed.match!, /"ENOENT"/);
 });
 
-test("parseQuery survives input that is not valid FTS5 syntax", () => {
+test("parseQuery survives input that is not valid FTS5 syntax", async () => {
   for (const bad of ['unbalanced " quote', "NEAR(", "a AND OR b", "*", "^^^", "#123"]) {
     const store = corpus();
     assert.doesNotThrow(() => searchBm25(store, bad));
@@ -82,60 +82,60 @@ test("parseQuery survives input that is not valid FTS5 syntax", () => {
   }
 });
 
-test("parseQuery keeps explicit phrases intact", () => {
+test("parseQuery keeps explicit phrases intact", async () => {
   const parsed = parseQuery('why does "text content does not match" happen');
   assert.deepEqual(parsed.phrases, ["text content does not match"]);
   assert.match(parsed.match!, /"text content does not match"/);
 });
 
-test("an all-stopword query returns nothing rather than everything", () => {
+test("an all-stopword query returns nothing rather than everything", async () => {
   const store = corpus();
   assert.equal(parseQuery("what is it").match, null);
-  assert.deepEqual(search(store, "what is it"), []);
+  assert.deepEqual(await search(store, "what is it"), []);
   store.close();
 });
 
-test("referencedNumbers extracts issue references", () => {
+test("referencedNumbers extracts issue references", async () => {
   assert.deepEqual(referencedNumbers("dupe of #1234 and #7"), [1234, 7]);
   assert.deepEqual(referencedNumbers("no refs"), []);
 });
 
-test("search finds the thread that quotes the error", () => {
+test("search finds the thread that quotes the error", async () => {
   const store = corpus();
-  const hits = search(store, "ENOENT no such file");
+  const hits = await search(store, "ENOENT no such file");
   assert.ok(hits.length > 0);
   assert.equal(hits[0]!.thread.number, 1);
   store.close();
 });
 
-test("results carry the matching chunks as evidence", () => {
+test("results carry the matching chunks as evidence", async () => {
   const store = corpus();
-  const hits = search(store, "hydration mismatch server-rendered");
+  const hits = await search(store, "hydration mismatch server-rendered");
   assert.equal(hits[0]!.thread.number, 3);
   assert.ok(hits[0]!.chunks.length > 0);
   assert.ok(hits[0]!.chunks[0]!.excerpt);
   store.close();
 });
 
-test("filters are applied before ranking", () => {
+test("filters are applied before ranking", async () => {
   const store = corpus();
 
-  const prs = search(store, "config", { filters: { kind: "pr" } });
+  const prs = await search(store, "config", { filters: { kind: "pr" } });
   assert.ok(prs.every((h) => h.thread.kind === "pr"));
   assert.ok(prs.length > 0);
 
-  const docs = search(store, "config", { filters: { labels: ["docs"] } });
+  const docs = await search(store, "config", { filters: { labels: ["docs"] } });
   assert.deepEqual(docs.map((h) => h.thread.number), [2]);
 
-  const open = search(store, "config", { filters: { state: "open" } });
+  const open = await search(store, "config", { filters: { state: "open" } });
   assert.ok(open.every((h) => h.thread.state === "open"));
 
-  const none = search(store, "config", { filters: { since: "2027-01-01T00:00:00Z" } });
+  const none = await search(store, "config", { filters: { since: "2027-01-01T00:00:00Z" } });
   assert.deepEqual(none, []);
   store.close();
 });
 
-test("a resolved thread outranks an unresolved one on an equal match", () => {
+test("a resolved thread outranks an unresolved one on an equal match", async () => {
   const store = Store.memory(repo);
   seed(store, { number: 1, title: "Widget explodes", body: "the widget explodes on load" });
   seed(store, {
@@ -147,13 +147,13 @@ test("a resolved thread outranks an unresolved one on an equal match", () => {
   });
   buildIndex(store);
 
-  const hits = search(store, "widget explodes on load");
+  const hits = await search(store, "widget explodes on load");
   assert.equal(hits[0]!.thread.number, 2);
   assert.ok(hits[0]!.score > hits[1]!.score);
   store.close();
 });
 
-test("boosts can be turned off", () => {
+test("boosts can be turned off", async () => {
   const store = Store.memory(repo);
   seed(store, { number: 1, title: "Widget explodes", body: "the widget explodes on load" });
   seed(store, {
@@ -165,12 +165,12 @@ test("boosts can be turned off", () => {
   });
   buildIndex(store);
 
-  const raw = search(store, "widget explodes on load", { raw: true });
+  const raw = await search(store, "widget explodes on load", { raw: true });
   assert.equal(raw[0]!.score, raw[1]!.score);
   store.close();
 });
 
-test("errorNeedles picks identifiers, not prose", () => {
+test("errorNeedles picks identifiers, not prose", async () => {
   const needles = errorNeedles(parseQuery("ENOENT TypeError Object.assign broken widget"));
   assert.ok(needles.includes("ENOENT"));
   assert.ok(needles.includes("TypeError"));
@@ -178,12 +178,12 @@ test("errorNeedles picks identifiers, not prose", () => {
   assert.ok(!needles.includes("broken"));
 });
 
-test("looksLikeChangeQuery routes change questions toward PRs", () => {
+test("looksLikeChangeQuery routes change questions toward PRs", async () => {
   assert.ok(looksLikeChangeQuery(parseQuery("why was the loader refactored")));
   assert.ok(!looksLikeChangeQuery(parseQuery("crash on startup ENOENT")));
 });
 
-test("a thread matching in several chunks outranks a single lucky hit", () => {
+test("a thread matching in several chunks outranks a single lucky hit", async () => {
   const store = Store.memory(repo);
   seed(store, { number: 1, title: "Sporadic timeout", body: "timeout happens" });
   seed(store, {
@@ -205,26 +205,26 @@ test("a thread matching in several chunks outranks a single lucky hit", () => {
   ]);
   buildIndex(store);
 
-  const hits = search(store, "sporadic timeout");
+  const hits = await search(store, "sporadic timeout");
   assert.equal(hits[0]!.thread.number, 2);
   assert.ok(hits[0]!.chunks.length > 1);
   store.close();
 });
 
-test("recency decay is mild and breaks ties only", () => {
+test("recency decay is mild and breaks ties only", async () => {
   const store = Store.memory(repo);
   seed(store, { number: 1, title: "Flaky test", body: "flaky test on CI", updatedAt: "2020-01-01T00:00:00Z" });
   seed(store, { number: 2, title: "Flaky test", body: "flaky test on CI", updatedAt: "2026-08-01T00:00:00Z" });
   buildIndex(store);
 
-  const hits = search(store, "flaky test on CI");
+  const hits = await search(store, "flaky test on CI");
   assert.equal(hits[0]!.thread.number, 2);
   // Mild: the stale thread keeps at least 85% of its score.
   assert.ok(hits[1]!.score / hits[0]!.score > 0.8);
   store.close();
 });
 
-test("rollup drops threads deleted between retrieval and ranking", () => {
+test("rollup drops threads deleted between retrieval and ranking", async () => {
   const store = corpus();
   const parsed = parseQuery("ENOENT");
   const hits = searchBm25(store, "ENOENT");

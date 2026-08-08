@@ -191,9 +191,13 @@ Targets on a mid-range laptop, measured against a 5 000-thread repo:
 | MCP server RSS, idle | < 60 MB |
 | MCP server RSS, embeddings loaded | < 300 MB |
 
-Embedding runs in a `worker_thread` with a bounded queue so the main thread never blocks and the
-process yields readily. No file watchers, no timers, no background sync — Groundhog uses zero CPU
-when you aren't asking it something.
+Embedding runs in-process, in batches. ONNX Runtime executes inference on its own native thread
+pool, so the event loop stays free without a worker thread — which also keeps the single-file `.exe`
+build simple, since spawning workers out of a SEA is not. The model is loaded lazily and only when a
+repo actually has vectors, so a Groundhog that never enabled embeddings never pays the ~150 MB.
+
+No file watchers, no timers, no background sync — Groundhog uses zero CPU when you aren't asking it
+something.
 
 ## 12. Distribution
 

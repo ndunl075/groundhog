@@ -32,7 +32,7 @@ Early. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and build orde
 - [x] GitHub ingestion
 - [x] Chunking
 - [x] BM25 search
-- [ ] Local embeddings + hybrid retrieval
+- [x] Local embeddings + hybrid retrieval
 - [ ] Context packing
 - [ ] CLI
 - [ ] MCP server
