@@ -82,7 +82,7 @@ groundhog schedule --enable --at 07:00
 ```
 
 That registers an **OS-native scheduled task** — Windows Task Scheduler, launchd, or a systemd user
-timer — that runs `groundhog sync --all` once a day at the time you name (default 09:00). A quiet
+timer — that runs `groundhog sync --all` once a day at the time you name (default 07:00). A quiet
 refresh takes about two seconds and a handful of API calls. Nothing runs in between: there is no
 daemon and no resident process.
 
@@ -112,16 +112,34 @@ strings. Semantic search is **optional**: `groundhog embed --enable` downloads a
 that runs on CPU, loaded lazily and only when a repo actually has vectors. Nothing is ever sent to
 an inference API, because there isn't one.
 
-## Privacy
+## Privacy and security
 
 Your queries never leave the machine — `groundhog ask` makes no network calls at all. The only
-outbound requests are to the forge API you pointed it at, to fetch the threads. No telemetry, no
-update pings.
+outbound requests are to the forge API, to fetch threads. No telemetry, no update pings.
+
+**Where your token can go.** Fetch requests carry your GitHub token, so the destination is
+allowlisted rather than merely sanitized — `github.com` only, by default. A repo ref can arrive as
+an MCP tool argument, which may have originated in an issue body or a web page, so
+`groundhog sync evil.example.com/a/b` must not be able to post your credentials to a stranger.
+GitHub Enterprise users opt their own host in:
+
+```
+GROUNDHOG_ALLOWED_HOSTS=ghe.mycorp.com
+```
+
+**Where your data goes.** Owner and repo names become path segments under the data directory, so
+they are validated against a strict charset; `../..` is rejected rather than followed. Search
+filters and query text reach SQLite only as bound parameters, never as SQL text.
+
+**What's on disk.** Indexed threads are stored unencrypted in your data directory. If you index a
+private repo, its contents sit in a plain SQLite file — treat it like a local clone of the repo.
+
+Production dependencies audit clean. Run `npm audit` yourself.
 
 ## Developing
 
 ```
-npm test            # 75 tests, no network needed
+npm test            # 97 tests, no network needed
 npm run typecheck
 npm run build       # tsc -> dist/
 npm run build:exe   # single-file binary -> build/

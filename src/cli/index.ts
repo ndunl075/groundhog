@@ -46,7 +46,7 @@ ${bold("ASK OPTIONS")}
 
 ${bold("SCHEDULE OPTIONS")}
   --enable / --disable   turn the daily sync task on or off
-  --at <HH:MM>           local time to run it (default 09:00)
+  --at <HH:MM>           local time to run it (default 07:00)
 
 ${bold("EXAMPLES")}
   groundhog index vercel/next.js

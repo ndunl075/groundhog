@@ -224,11 +224,23 @@ and `no matches` is the conclusion a stale index gets wrong in the direction tha
   bundling them would multiply the binary size for a feature that is opt-in even in the full build.
 - GitHub Actions tests on Linux/macOS/Windows and builds the three executables on tag.
 
-## 13. Privacy
+## 13. Privacy and security
 
 Fetched thread content, embeddings, and queries live only in the local SQLite file. There is no
 analytics, no crash reporting, no update ping. The single outbound destination is the forge API you
 pointed it at, and `groundhog ask` never touches the network at all.
+
+Two boundaries are enforced rather than assumed, because a repo ref is attacker-reachable — it can
+arrive as an MCP tool argument that originated in an issue body or a web page:
+
+| Boundary | Enforcement |
+|---|---|
+| Owner/name become filesystem paths | Strict charset; `.`, `..` and separators rejected at parse time, so a ref cannot escape the data dir. |
+| Fetches carry the GitHub token | Destination host allowlisted to `github.com`; others need an explicit `GROUNDHOG_ALLOWED_HOSTS`. Checked in the forge constructor, before any request path exists. |
+| Filters and query text reach SQLite | Bound parameters only. FTS5 input is emitted as quoted phrases, which is both the escape and the identifier-matching mechanism. |
+
+Indexes are stored unencrypted: a private repo's threads sit in a plain SQLite file, and should be
+treated like a local clone of that repo.
 
 ## 14. Build order
 

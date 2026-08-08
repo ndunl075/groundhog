@@ -3,6 +3,7 @@ import { threadId } from "../types.ts";
 import { ForgeError } from "./types.ts";
 import type { FetchOptions, Forge, IngestedThread } from "./types.ts";
 import { resolveToken } from "./auth.ts";
+import { assertHostAllowed } from "./hosts.ts";
 
 /** Page sizes chosen to stay well under GitHub's GraphQL node-cost limits. */
 const THREADS_PER_PAGE = 25;
@@ -74,6 +75,9 @@ export class GitHubForge implements Forge {
   private kinds: ThreadKind[] | null = null;
 
   constructor(repo: RepoRef, token: string | null = resolveToken()) {
+    // Checked at construction, before any code path can reach a request: every
+    // request carries the token.
+    assertHostAllowed(repo.host);
     this.repo = repo;
     this.host = repo.host;
     this.token = token;

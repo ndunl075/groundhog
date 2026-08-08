@@ -7,6 +7,9 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 const run = promisify(execFile);
 
 export const TASK_NAME = "GroundhogSync";
+
+/** Early enough to be fresh before the workday, late enough that laptops are on. */
+export const DEFAULT_TIME = "07:00";
 const LAUNCHD_LABEL = "dev.groundhog.sync";
 const SYSTEMD_UNIT = "groundhog-sync";
 
@@ -31,7 +34,7 @@ export interface ScheduleStatus {
  * trade. The OS already has a scheduler, and it survives reboots.
  */
 export async function installSchedule(opts: ScheduleOptions = {}): Promise<ScheduleStatus> {
-  const at = normalizeTime(opts.at ?? "09:00");
+  const at = normalizeTime(opts.at ?? DEFAULT_TIME);
   const [hour, minute] = at.split(":") as [string, string];
   const command = syncCommand();
 
